@@ -154,7 +154,44 @@ secondary model (see Hermes docs for model routing/fallback configuration).
 hermes --test-api   # or start a session and send a test message
 ```
 
-### 3.3 Google Gemini API Key (Embeddings)
+### 3.3 Firecrawl API Key (Web Scraping)
+
+Firecrawl converts web pages to clean markdown, handling JS-rendered content and
+stripping boilerplate. Hermes uses it for high-quality URL ingestion.
+
+1. Go to https://firecrawl.dev and sign up
+2. Get your API key from the dashboard
+3. Edit `~/.hermes/.env`:
+
+```bash
+FIRECRAWL_API_KEY=fc-...
+```
+
+**Free tier:** 500 credits/month (1 credit = 1 page scrape). Sufficient for
+moderate PKM use. Paid plans start at $19/month for 3,000 credits.
+
+**Verify:** Ask Hermes to ingest a JavaScript-heavy URL (e.g. a SPA blog post)
+and confirm the content is extracted cleanly.
+
+### 3.4 Exa API Key (AI Web Search)
+
+Exa is an AI-native search engine that returns semantically relevant results,
+not just keyword matches. Hermes uses it for web search queries.
+
+1. Go to https://dashboard.exa.ai and sign up
+2. Get your API key from settings
+3. Edit `~/.hermes/.env`:
+
+```bash
+EXA_API_KEY=exa-...
+```
+
+**Free tier:** 1,000 searches/month. Paid plans start at $5/month for 10,000.
+
+**Verify:** Ask Hermes to search for a topic and confirm it returns relevant
+web results with summaries.
+
+### 3.5 Google Gemini API Key (Embeddings)
 
 1. Go to https://aistudio.google.com/apikey
 2. Create a new API key (no billing required)
@@ -188,7 +225,7 @@ embedding_provider: gemini
 **Verify:** Ingest a test document and confirm that semantic search returns it
 (not just keyword matching).
 
-### 3.4 Slack Bot Token
+### 3.6 Slack Bot Token
 
 #### Create the Slack App
 
@@ -731,6 +768,8 @@ If the VPS is lost, here's how to restore:
    cat > ~/.hermes/.env << 'EOF'
    ANTHROPIC_API_KEY=sk-ant-...
    GOOGLE_GEMINI_API_KEY=AIza...
+   FIRECRAWL_API_KEY=fc-...
+   EXA_API_KEY=exa-...
    SLACK_BOT_TOKEN=xoxb-...
    SLACK_APP_TOKEN=xapp-...
    EOF

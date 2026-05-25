@@ -59,6 +59,20 @@ docker compose up -d
 | `OPENROUTER_API_KEY` | OpenRouter (200+ models) |
 | `OPENAI_API_KEY` | OpenAI models |
 | `GOOGLE_GEMINI_API_KEY` | Google Gemini |
+| `FIRECRAWL_API_KEY` | Firecrawl web scraping/crawling |
+| `EXA_API_KEY` | Exa AI-powered web search |
+
+### External Tool Services
+
+**Firecrawl** (https://firecrawl.dev) -- Web scraping API that converts pages to
+clean markdown. Used by Hermes' web_extract toolset for high-quality page content
+extraction (handles JS-rendered pages, removes boilerplate). Free tier: 500 credits/month.
+Sign up at https://firecrawl.dev, get API key from dashboard.
+
+**Exa** (https://exa.ai) -- AI-native search API. Returns semantically relevant
+results with optional full-page content. Used by Hermes' web_search toolset as an
+alternative/complement to traditional search. Free tier: 1000 searches/month.
+Sign up at https://dashboard.exa.ai, get API key from settings.
 
 ### Supported LLM Providers (29 total)
 Anthropic, OpenAI, OpenRouter, Google Gemini, DeepSeek, xAI, Nous, NVIDIA NIM,
