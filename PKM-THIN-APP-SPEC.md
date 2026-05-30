@@ -171,10 +171,10 @@ unless we later bypass it.
 | Repo | Was | Becomes |
 |---|---|---|
 | `hermes-planning` | planning docs | keep (optionally rename `pkm-planning`); this doc lives here |
-| `hermes-agent` | Hermes home + config-backup | **retire**; new code repo **`semantic-wiki`** replaces it (also the config-backup target) |
+| `hermes-agent` | Hermes home + config-backup | **retire**; new code repo **`thoth`** replaces it (also the config-backup target) |
 | `pkm-vault` | (to be created) | canonical vault — unchanged plan |
 
-Keep Hermes running against the same vault while `semantic-wiki` is built beside it — files are canonical, so
+Keep Hermes running against the same vault while `thoth` is built beside it — files are canonical, so
 there is no migration risk and nothing canonical is ever in flight. Stop the Hermes gateway only once the
 appliance + MCP prove out.
 
@@ -247,14 +247,26 @@ Same operation as the Hermes spec, minus Hermes tool names, run as **bounded val
 8. REPORT             reply: files touched + obsidian:// link(s) + vault path + [[wikilink]].
 ```
 
-> **Capture surfaces & binaries (resolved).** Image/binary capture must go through surfaces that hold the
-> actual file *server-side*: **Slack** (the appliance downloads the binary from Slack's API — zero client
-> context; vision runs server-side on the API key) and **Claude Code local** (pass a *file path*; the MCP
-> server, same machine, reads the bytes itself). **claude.ai web is weak for pushing in binaries** — an
-> uploaded image is trapped in the chat and the server can't reach it; it's great for text/URL capture and
-> retrieval, poor for new binaries. So `pkm_ingest` arguments accept **text, a URL, or a server-resolvable
-> path — never base64 image blobs** (a model can't re-emit a *viewed* image as base64, and forcing it would
-> double the client context cost). See the image/context note in the build log / §15 Q2.
+> **Capture surfaces & binaries (resolved).** Binary bytes can only enter where the *server* can read them.
+> Under the **VPS deployment** (appliance + MCP server on the VPS), the channels are:
+> 1. **Slack — primary.** Phone/desktop upload → the appliance (VPS) downloads the bytes from Slack's API and
+>    files them. Zero client context; vision runs server-side on the API key. Works from anywhere.
+> 2. **A URL — sidesteps the problem.** Papers/articles captured by URL are fetched *server-side* (the
+>    appliance downloads the PDF), so no client→server transfer happens. "Binary ingest" really only means
+>    *a local file with no URL* (photos, screenshots, scans).
+> 3. **Obsidian drag-drop — desk-side complement.** The workstation already holds a synced vault clone;
+>    dropping a file into `raw/assets` makes Obsidian Git push it, the VPS pulls it, and an **adopt-orphan-asset**
+>    step (the §16 orphan-jpeg flow, made ongoing in the reindex/lint pass) vision-describes + files it. No
+>    agent transport needed.
+> 4. **Claude Code path-passing — only when co-located with the MCP server.** A *file path* resolves only if
+>    the client shares a filesystem with the server: Claude Code **on the VPS** (file must already be there),
+>    or a **workstation-local stdio MCP** run against the local vault clone. A workstation Claude Code talking
+>    to a *remote* VPS MCP **cannot** pass a local path (no shared FS).
+>
+> **claude.ai web cannot push binaries at all** — the upload is trapped in the chat and the server can't reach
+> it; it is for text/URL capture and retrieval. So `pkm_ingest` arguments accept **text, a URL, or a
+> server-resolvable path — never base64 image blobs** (a model can't re-emit a *viewed* image as base64, and
+> forcing it would double the client context cost). See §15 Q2.
 
 Routing table (signal → `type` → folder), disambiguation rules, and the persona text are unchanged —
 **`PKM-AGENT-SPEC.md §7`**. The persona that was `SOUL.md` becomes the system-prompt string in `llm.py`
@@ -331,11 +343,11 @@ using `gh`'s credential helper + `GIT_CONFIG_GLOBAL=/dev/null` per the user's gl
 never `--force`. Conflict strategy (raw/ immutable, one-file-per-topic, fail-loud on rebase collision,
 surface the path over Slack) is unchanged.
 
-`bin/vault-pull` and `bin/vault-commit` (full bodies in **§12**) move into `semantic-wiki/bin/` as-is. The only edit:
-`vault-commit`'s push target and `config-backup.sh` now point at the **`semantic-wiki`** config repo instead of
+`bin/vault-pull` and `bin/vault-commit` (full bodies in **§12**) move into `thoth/bin/` as-is. The only edit:
+`vault-commit`'s push target and `config-backup.sh` now point at the **`thoth`** config repo instead of
 `hermes-agent`. `config-backup.sh` still snapshots the transient DBs *if any remain* — but note most of what
 it backed up (Hermes `state.db`/`kanban.db`) **ceases to exist** in the thin app: there is no session DB as a
-store. The appliance keeps a small **transient state DB** — single-writer, `~/.semantic-wiki/state.db`,
+store. The appliance keeps a small **transient state DB** — single-writer, `~/.thoth/state.db`,
 gitignored, **never a knowledge store** (the P1 guardrail: only transport bookkeeping + in-flight buffers +
 optional TTL'd chat context; the instant knowledge exists, it is a vault file). Tables:
 `processed_events(event_id, ts)` (Slack redelivery dedupe; prune >1h); `captures(id, channel, slack_ts, kind,
@@ -343,9 +355,9 @@ status, summary, vault_paths, error, created)` (pending→filed→failed — cra
 report); `conversations(channel, role, content, ts)` (optional; TTL ~30 min for Slack follow-ups, never a
 transcript). Single-writer ⇒ no git / two-writer surface; disposable ⇒ **not** part of recovery and **not**
 backed up (on VPS loss, start fresh — you lose only dedupe history + mid-flight captures, both cheap). It is
-the *only* state outside the vault, kept tiny and pruned. **Backup model:** the `pkm-vault` repo *is* the durable knowledge backup; `semantic-wiki` repo backs up
+the *only* state outside the vault, kept tiny and pruned. **Backup model:** the `pkm-vault` repo *is* the durable knowledge backup; `thoth` repo backs up
 code+config; secrets live only in `.env` (chmod 600) and a password manager. Full recovery (§12) simplifies to:
-clone `semantic-wiki`, clone `pkm-vault`, restore `.env`, `reindex --full-rebuild`, start the systemd unit.
+clone `thoth`, clone `pkm-vault`, restore `.env`, `reindex --full-rebuild`, start the systemd unit.
 
 ---
 
@@ -382,7 +394,7 @@ Most of Hermes' guard-rail apparatus existed to contain a powerful general agent
 
 | Phase | Deliverable | Proves |
 |---|---|---|
-| **0** | `semantic-wiki` repo, `config.py`, `.env`, deps installed, Phase-A/B prereqs (vault repo created + cloned, tokens) | scaffolding |
+| **0** | `thoth` repo, `config.py`, `.env`, deps installed, Phase-A/B prereqs (vault repo created + cloned, tokens) | scaffolding |
 | **1** | `vault.py` + git wrappers + `llm.py`; write/read a curated page by hand, commit+push, see it in Obsidian | the closed surface + sync round-trip |
 | **2** | `ingest.py` + `extract.py` + `query.py` + `slack_app.py`: **throw a URL/photo/thought at the Slack DM → filed page + obsidian link back; ask a question → answer + link** | *the afternoon goal* |
 | **3** | `mcp_server.py` (Claude Code config), `reindex_from_vault.py`, `summary.py`, cron + `pkm-slack.service`, `config-backup.sh` | unattended + MCP + budget-ready |
@@ -397,12 +409,12 @@ The vault-content migration is unchanged from **`PKM-AGENT-SPEC.md §16`** (3 im
 `raw/assets/` + curated embed-and-describe pages + the `SCHEMA.md`/`index.md`/`log.md` spine + `_bases`). What
 changes is the *cut-over*: instead of rewriting `SOUL.md` and re-pointing Hermes' Hindsight/cron, you:
 
-1. Build `semantic-wiki` Phases 0–3 against the **same** `/opt/pkm-vault` (Hermes can keep running — files are
+1. Build `thoth` Phases 0–3 against the **same** `/opt/pkm-vault` (Hermes can keep running — files are
    canonical, no contention beyond the normal two-writer protocol).
 2. Run the §16 content migration once, into `pkm-vault`.
-3. Point Claude Code's `~/.claude/settings.json` at the `semantic-wiki` MCP server; verify `pkm_search` returns
+3. Point Claude Code's `~/.claude/settings.json` at the `thoth` MCP server; verify `pkm_search` returns
    vault pages.
-4. Switch summaries/reindex to the `semantic-wiki` cron; confirm the 07:00 Slack digest fires from the new path.
+4. Switch summaries/reindex to the `thoth` cron; confirm the 07:00 Slack digest fires from the new path.
 5. **Stop and disable the Hermes gateway** (`hermes gateway stop`), archive the `hermes-agent` repo. Tirith,
    `state.db`, the 96 skills, the 350-var config — all retired. The vault and the `obsidian://` deep links are
    untouched throughout.
@@ -425,7 +437,9 @@ changes is the *cut-over*: instead of rewriting `SOUL.md` and re-pointing Hermes
    key** — spends the budget *and* keeps the client conversation lean (only a short confirmation returns, not
    the full extracted doc). Also expose low-level `pkm_write_page(...)` for when Claude Code prefers to curate
    itself. Slack is always server-side. **Binaries: text/url/path only, never base64** (§6 capture note).
-7. **Name → `semantic-wiki`** (repo + app; the vault stays `pkm-vault`).
-8. **State → keep a small transient single-writer SQLite** (`~/.semantic-wiki/state.db`) — gitignored, pruned,
+7. **Name → `thoth`** — repo/app name **and** the MCP server key (tools surface as `mcp__thoth__pkm_ingest`,
+   etc.); the vault stays `pkm-vault`. The name never has to be spoken to invoke a tool — Claude Code routes
+   by tool name + description, so the server name is just the namespace prefix / a disambiguation handle.
+8. **State → keep a small transient single-writer SQLite** (`~/.thoth/state.db`) — gitignored, pruned,
    not backed up, never a knowledge store (schema + rationale in §10).
 ```
